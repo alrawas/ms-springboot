@@ -3,6 +3,8 @@ package com.alrawasabed.ecommerce.order;
 import com.alrawasabed.ecommerce.kafka.OrderConfirmation;
 import com.alrawasabed.ecommerce.kafka.OrderProducer;
 import com.alrawasabed.ecommerce.orderline.OrderLineService;
+import com.alrawasabed.ecommerce.payment.PaymentClient;
+import com.alrawasabed.ecommerce.payment.PaymentRequest;
 import com.alrawasabed.ecommerce.product.ProductClient;
 import com.alrawasabed.ecommerce.product.PurchaseRequest;
 import jakarta.persistence.EntityNotFoundException;
@@ -20,6 +22,7 @@ public class OrderService {
     private final OrderMapper mapper;
     private final OrderLineService orderLineService;
     private final OrderProducer orderProducer;
+    private final PaymentClient paymentClient;
     public Integer create(OrderRequest request) {
 
         // check the customer --> OpenFeign
@@ -44,7 +47,15 @@ public class OrderService {
             );
         }
 
+        var paymentRequest = new PaymentRequest(
+                request.amount(),
+                request.paymentMethod(),
+                order.getId(),
+                order.getReference(),
+                customer
+        );
         // start payment process
+        paymentClient.requestOrderPayment(paymentRequest);
 
         // send the order confirmation --> notification-ms (kafka)
         orderProducer.sendOrderConfirmation(new OrderConfirmation(
